@@ -23,7 +23,11 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
+
+
 
 # from bs4 import BeautifulSoup
 
@@ -34,7 +38,7 @@ load_dotenv()
 ############
 CHROMEDRIVER = os.getenv('CHROMEDRIVER')
 # URL = 'https://www.skyscanner.de/transport/fluge/fran/del/231229/240123/?adultsv2=1&cabinclass=economy&childrenv2=&inboundaltsenabled=false&outboundaltsenabled=false&preferdirects=false&ref=home&rtn=1'
-URL = 'https://www.kayak.co.uk/flights/FRA-DEL/2023-12-29/2024-01-23'
+# URL = 'https://www.kayak.co.uk/flights/FRA-DEL/2023-12-29/2024-01-23'
 
 CONFIG = yaml.load(open('config.yaml'), Loader=yaml.FullLoader)
 COUNTRY = 'uk'
@@ -42,11 +46,12 @@ COUNTRY = 'uk'
 ############
 # INIT 
 ############
-# selenium
-options = Options()
-# options.add_argument("--headless=new")
-# options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537")
-driver = webdriver.Chrome(service=Service(executable_path=CHROMEDRIVER), options=options)
+logging.getLogger('scraper')
+# # selenium
+# options = Options()
+# # options.add_argument("--headless=new")
+# # options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537")
+# driver = webdriver.Chrome(service=Service(executable_path=CHROMEDRIVER), options=options)
 
 ############
 # FUNCTIONS 
@@ -290,7 +295,9 @@ class FlightsScaper:
     data and tasks pertaining to retrieving flight
     data from kayak. 
     '''
-    def __init__(self, browser_driver: str, country: str):
+    def __init__(self, 
+                 country: str,
+                 browser_driver: str = CHROMEDRIVER): 
         self.driver = webdriver.Chrome(service=Service(executable_path=browser_driver)) 
         if country in CONFIG['permitted_countries']:
             self.country = country
@@ -307,7 +314,7 @@ class FlightsScaper:
                     destination: str | list[str],
                     leave_date: str | list[str],
                     return_date: str | None,
-                    flex: str | int | None):
+                    flex: str | int | None = None):
         '''
         creates a new journey object 
         with a journey_type. journey_type
@@ -342,6 +349,8 @@ class FlightsScaper:
             leave_date = [leave_date]
         for date in leave_date:
             self._validate_date(date)
+
+        
             
         if return_date is not None:
             self._validate_date(return_date)
@@ -379,6 +388,7 @@ class FlightsScaper:
             urls.append(url)
             
         self.urls = urls
+        self.journey_options = []
 
 
     def get_flight_options(self,
@@ -388,23 +398,64 @@ class FlightsScaper:
         returns a list of dict with prices.
         '''
         # load url
+        logging.debug(f'loading url: {url}')
         self.driver.get(url)
 
-        # click the cookie decline button,
-        # if it exists
+        # wait for the cookie button
+        logging.debug('waiting for cookie button to load')
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])))
+
         try:
-            button = driver.find_element(
+            button = self.driver.find_element(
                 By.XPATH, 
-                CONFIG['country'][self.country]['cookie_decline_button'])
+                CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])
             button.click()
+            logging.debug(f'cookie decline button clicked')
         except NoSuchElementException:
             # no button - no problem
+            logging.debug(f'no cookie decline button found')
             pass
         
-        # get results
+        # wait for results to load
+        logging.debug(f'waiting for page to load...')
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                CONFIG['country'][self.country]['xpaths']['show_more_button'])))
+
+        # append more results
+        more_results_button = self.driver.find_element(
+            By.XPATH,
+            CONFIG['country'][self.country]['xpaths']['show_more_button'])
+        more_results_button.click()
+        
+        # append results
+        logging.debug(f'attempting to find results using xpath: {CONFIG["country"][self.country]["xpaths"]["result_blocks"]}')
         results = self.driver.find_elements(
             By.XPATH,
-            CONFIG['country'][self.country]['result_blocks'])
+            CONFIG['country'][self.country]['xpaths']['result_blocks'])
+        logging.debug(f'retrieved {len(results)} results')
+        
+        # parse results
+        logging.debug(f'attempting to parse results...')
+        if self.journey_type == 'round_trip':
+            dates = list(self.leave_date).append(self.return_date)
+        else:
+            dates = list(self.leave_date)
+        
+        logging.debug(f'dates dtype: {type(dates)}')
+        logging.debug(f'dates: {dates}') 
+
+        for result in results:
+            journey_option = self._parse_journey_info(
+                result.text,
+                dates,
+                self.journey_type)
+            if journey_option is not None:
+                self.journey_options.append(journey_option)
         
 
 
@@ -428,6 +479,14 @@ class FlightsScaper:
         all origin, destination and leave_date
         arguments must be lists of equal length.
         '''
+        logging.debug(f'input args:')
+        logging.debug(f'origin: {origin}')
+        logging.debug(f'destination: {destination}')
+        logging.debug(f'leave_date: {leave_date}')
+        logging.debug(f'return_date: {return_date}')
+        logging.debug(f'flex: {flex}')
+        logging.debug(f'base_url: {base_url}')
+
         # check inputs go with our journey type,
         # define journey type
         if (isinstance(origin, list) and
@@ -436,12 +495,14 @@ class FlightsScaper:
             len(origin) == len(destination) == len(leave_date) and
             return_date is None and
             flex is None):
-            journey_type = 'multi-city'
-        elif (isinstance(origin, str) and isinstance(destination, str) and isinstance(leave_date, str)):
+            journey_type = 'multi_city'
+        elif (isinstance(origin, str) and isinstance(destination, str)):
+            if isinstance(leave_date, list) and len(leave_date) == 1:
+                leave_date = leave_date[0]
             if return_date is None:
-                journey_type = 'one-way'
+                journey_type = 'one_way'
             elif isinstance(return_date, str):
-                journey_type = 'return' 
+                journey_type = 'round_trip' 
         else:
             raise ValueError('Invalid combination of input parameters.')   
         logging.info(f'journey type: {journey_type}')
@@ -455,11 +516,11 @@ class FlightsScaper:
             flex_add = '-'+CONFIG['permitted_flex'][flex]
         
         # build url
-        if journey_type == 'one-way':
+        if journey_type == 'one_way':
             url = base_url + origin + '-' + destination + '/' + leave_date + flex_add
-        elif journey_type == 'return':
+        elif journey_type == 'round_trip':
             url = base_url + origin + '-' + destination + '/' + leave_date + flex_add + '/' + return_date + flex_add
-        elif journey_type == 'multi-city':
+        elif journey_type == 'multi_city':
             url = base_url 
             for i in range(len(origin)):
                 url += origin[i] + '-' + destination[i] + '/' + leave_date[i] + '/'
@@ -616,18 +677,18 @@ TO DO:
 ############
 # THE THING! 
 ############
-driver.get(URL)
+# driver.get(URL)
 
-# click the cookie decline button
-div = driver.find_element(By.CLASS_NAME, 'P4zO-submit-buttons')
-button = div.find_element(By.TAG_NAME, 'button')
-button.click()
+# # click the cookie decline button
+# div = driver.find_element(By.CLASS_NAME, 'P4zO-submit-buttons')
+# button = div.find_element(By.TAG_NAME, 'button')
+# button.click()
 
-# results_page = BeautifulSoup(driver.page_source, 'html.parser')
+# # results_page = BeautifulSoup(driver.page_source, 'html.parser')
 
-all_results = driver.find_elements(By.XPATH, PATHS['result_blocks'])
+# all_results = driver.find_elements(By.XPATH, PATHS['result_blocks'])
 
-for result in all_results:
-    print(result.text)
-    print('---')
+# for result in all_results:
+#     print(result.text)
+#     print('---')
 
