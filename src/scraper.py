@@ -7,6 +7,7 @@
 # NL, 16/12/23
 # NL, 17/12/23 -- moving from skyscanner to kayak, working out
 #                 base functionality, config, etc.
+# NL, 18/12/23 -- scraper class returns data.
 
 ############
 # IMPORTS 
@@ -711,37 +712,40 @@ class FlightsScaper:
 
 
 '''
+update 18/12/23:
+- we've now got a working scraper class tha 
+  collects ample flight data without obviously
+  breaking on us.
+- also need to test how this works with one-way,
+  multicity and city-options journeys. the city-
+  options stuff is a clear USP of this app. 
+- this is however only working for uk and with
+  round-trip journeys right now. we will need to
+  do a lot more experimentation here... let alone
+  doing this stuff headless and so on. 
+- but, we've got the core functionality working:
+  retrieve flight data & prices reliably and 
+  consistently. 
+
 TO DO:
-- finish off the flight info parsing function, 
-  we need to have this be very robust to all 
-  the intricacies and differences of how the
-  info is presented on the page.
-- see what's up with the different xpath/
-  country combinations. do they change randomly?
+- now we need to think about how we're going
+  to store this data. 
+- we want a sqlite. so there'll have to be some
+  thinking about the tables we'll want for this.
+  - there should probably be a table for journeys,
+    and a sub-table for legs, which matches to
+    journeys. we may want more tables for other stuff.
+- we should think about certain IDs we want to create:
+  - search_id (a hash of all the search parameters)
+  - journey_id (a hash of all the journey parameters), 
+    so that would be, for each leg, dep/arr airports & time 
+    plus airline
+  - leg_number (probably not an id, but just an incrementing
+    integer)
+
 - write the function for writing the data to
   file or db. 
 - test all this stuff, and see whether we can get it
-  to work on the server.
-
+  to work on the server.s
 '''
-
-
-
-############
-# THE THING! 
-############
-# driver.get(URL)
-
-# # click the cookie decline button
-# div = driver.find_element(By.CLASS_NAME, 'P4zO-submit-buttons')
-# button = div.find_element(By.TAG_NAME, 'button')
-# button.click()
-
-# # results_page = BeautifulSoup(driver.page_source, 'html.parser')
-
-# all_results = driver.find_elements(By.XPATH, PATHS['result_blocks'])
-
-# for result in all_results:
-#     print(result.text)
-#     print('---')
 
