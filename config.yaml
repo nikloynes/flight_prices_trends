@@ -1,0 +1,41 @@
+---
+# config.yaml
+# this file contains xpaths and relevant config variables
+# based on the configuration you choose for getting
+# your results from flight_price_trends.
+
+permitted_countries:
+  - de
+  - us
+  - uk
+permitted_flex:
+  '-1': 'flexible-1day-after'
+  '+1': 'flexible-1day-before'
+  '1': 'flexible-1day'
+  '2': 'flexible-2days'
+  '3': 'flexible-3days'
+permitted_journey_types:
+  - 'one_way'
+  - 'round_trip'
+  - 'multi_city'
+  - 'city_options-one_way'
+  - 'city_options-round_trip'
+  # - 'city_options-multi_city'
+max_city_options: 6
+country:
+  de:
+    base_url: 'https://kayak.de/flights/'
+    xpaths: 
+      all_results: '//*[@id="listWrapper"]/div/div[2]/div'
+      result_blocks: '//*[@id="listWrapper"]/div/div[2]/div/div[*]'
+  us:
+    base_url: 'https://kayak.com/flights/'
+    xpaths: 
+      all_results: '//*[@id="listWrapper"]/div/div[2]/div'
+      result_blocks: '//*[@id="c8C-J"]/div/div/div[*]'
+  uk: 
+    base_url: 'https://kayak.co.uk/flights/'
+    xpaths: 
+      decline_cookies: '//*[@id="portal-container"]/div/div[2]/div/div/div[2]/div/div[2]/button'
+      all_results: '//*[@id="listWrapper"]/div/div[2]/div'
+      result_blocks: '//*[@id="wNTH"]/div/div/div[*]'
