@@ -35,7 +35,11 @@ country:
       result_blocks: '//*[@id="c8C-J"]/div/div/div[*]'
   uk: 
     base_url: 'https://kayak.co.uk/flights/'
+    currency_symbol: '£'
     xpaths: 
       decline_cookies: '//*[@id="portal-container"]/div/div[2]/div/div/div[2]/div/div[2]/button'
       all_results: '//*[@id="listWrapper"]/div/div[2]/div'
-      result_blocks: '//*[@id="wNTH"]/div/div/div[*]'
+      # result_blocks: '//*[@id="wNTH"]/div/div/div[*]'
+      # result_blocks: '//*[@id="listWrapper"]/div/div[2]/div/div[*]'
+      result_blocks: '//*[@id="Qyf9"]/div/div/div[2]'
+      show_more_button: '//*[@id="listWrapper"]/div/div[3]/div'

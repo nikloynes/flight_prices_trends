@@ -52,7 +52,6 @@ driver = webdriver.Chrome(service=Service(executable_path=CHROMEDRIVER), options
 # FUNCTIONS 
 ############
 # helpers
-
 def discard_before_time_substring(s: str) -> str:
     '''
     we know that the first relevant
@@ -73,8 +72,218 @@ def discard_before_time_substring(s: str) -> str:
     else:
         # If no match is found, return the original string
         return s
+    
 
-# base stuff
+def journey_is_ad(journey: list) -> bool:
+    '''
+    we sometimes get journeys which 
+    are promoted ads, and shouldn't
+    bias our understanding of what the
+    `best` journeys are for a given
+    query. 
+    hence, let's remove those options. 
+    '''
+    for elem in journey:
+        if elem=='Ad':
+            return True
+    return False
+
+
+def find_timing_chunks(journey: list) -> list:
+    '''
+    the timings of a journey are
+    formatted as 'HH:MM – HH:MM',
+    and they neatly segment our journey
+    into separate elements. by identifying
+    the chunks containing these strings, 
+    we can separate our journey into legs
+    and parse all data more easily.
+    '''
+    pattern = r'\d{2}:\d{2} – \d{2}:\d{2}'
+    indexes = []
+    # find the indexes in `journey`
+    # where the pattern matches
+    for i, elem in enumerate(journey):
+        if re.search(pattern, elem):
+            indexes.append(i)
+    
+    return indexes
+
+
+def find_last_duration_chunk(journey: list) -> int:
+    '''
+    for the last leg of a journey,
+    the duration_chunk, formatted as
+    '14h 15m', bookends the last chunk,
+    and is indicative of the 
+    price/meta section.
+    '''
+    pattern = r'\d+h \d+m'
+    indexes = []
+    
+    for i, elem in enumerate(journey):
+        if re.search(pattern, elem):
+            indexes.append(i)
+    
+    return indexes[-1]
+
+
+def parse_duration(s: str) -> dt.timedelta:
+    '''
+    our duration objects are strings
+    in the format '14h 15m'. we want
+    to parse this into a timedelta object.
+    '''
+    # split the string
+    hours, minutes = s.split('h')
+    minutes = minutes[:-1]
+    # convert to timedelta
+    return dt.timedelta(hours=int(hours), minutes=int(minutes))
+
+
+def is_airport_chunk(s: str) -> bool:
+    '''
+    tests whether a given substring
+    represents an airport
+    format: 'AAAAname of airport'
+    '''
+    pattern = r'[A-Z]{4}'
+    match = re.search(pattern, s)
+    if match:
+        return True
+    else:
+        return False
+
+
+def parse_timings(s: str, 
+                  departure_date: str,
+                  penalty: int | None) -> tuple[dt.datetime]:
+    '''
+    in our journey info strings, we have
+    a departure time and an arrival time,
+    both contained in a substring in the
+    following format: 
+
+    '10:45 – 04:50'
+
+    by combining the departure date,
+    with the parsed time strings, 
+    plus, if required, a penalty 
+    (for when a flight arrives on a 
+    different date than it set off),
+    we output two datetime objects.
+    '''
+    # split the string
+    times = s.split(' – ')
+
+    ts0 = departure_date + ' ' + times[0]
+    if penalty:
+        penalty = dt.timedelta(days=penalty)
+        ts1 = dt.datetime.strptime(departure_date, '%Y-%m-%d') + penalty
+        # back to string
+        ts1 = ts1.strftime('%Y-%m-%d') + ' ' + times[1]
+    else:
+        ts1 = departure_date + ' ' + times[1]
+
+    t0 = dt.datetime.strptime(ts0, '%Y-%m-%d %H:%M')
+    t1 = dt.datetime.strptime(ts1, '%Y-%m-%d %H:%M')
+
+    return t0, t1
+
+
+def chunk_is_penalty(s: str) -> int | None:
+    '''
+    we call a chunk a penalty if it
+    indicates that a flight arrives
+    on a different day to when it
+    set off. this is indicated by
+    a '+' followed by an integer.
+    '''
+    pattern = r'\+\d+'
+    match = re.search(pattern, s)
+    if match:
+        # extract the integer
+        logging.debug(f'penalty chunk found: {s[match.start():match.end()]}')
+        return int(s[match.start()+1:match.end()])
+    else:
+        logging.debug(f'no penalty chunk found')
+        return None
+
+
+def find_parse_stops(s: str) -> int:
+    '''
+    takes a string and returns the
+    number of stops in the journey.
+    '''
+    pattern = r'(\d+ stop)|direct'
+    
+    match = re.search(pattern, s)
+    if match:
+        # extract the integer
+        logging.debug(f'stops chunk found: {s[match.start():match.end()]}')
+        stops = s[match.start():match.end()]
+        if stops == 'direct':
+            return 0
+        else:
+            return int(stops.split()[0])
+    else:
+        logging.debug(f'no stops chunk found')
+        return None
+    
+
+def find_parse_stop_airports(leg: list[str]) -> list:
+    '''
+    takes a substring and returns the
+    stop airports for a given leg
+    of a journey.
+    '''
+    # find the stop chunks
+    # we know that the airports
+    # where we stop are always
+    # after the chunk with number of
+    # stops
+    for i, chunk in enumerate(leg):
+        stops = find_parse_stops(chunk)
+        if stops is not None:
+            index = i+1
+            break
+    
+    return leg[index].split(', ')
+
+# prices/meta helpers
+def parse_prices_meta(raw_chunks: list[str],
+                      currency_symbol: str,
+                      created_at: dt.datetime) -> dict:
+    '''
+    takes a list of strings containing
+    the price and meta info for a given
+    journey, and returns a dict with
+    the parsed info.
+    '''
+    # first, drop 'Select' and ensure 
+    # we have a list of length 5
+    chunks = [x for x in raw_chunks if x != 'Select']
+    if len(chunks) != 5:
+        raise ValueError(f'chunks is not length 5: {chunks}')
+    
+    # parse the price to int
+    raw_price = chunks[3]
+    raw_price.replace(currency_symbol, '')
+    price = int(raw_price)
+    
+    return {
+        'airline' : chunks[0],
+        'cabin_baggage' : chunks[1],
+        'checked_baggage' : chunks[2],
+        'class' : chunks[4],
+        'price' : price,
+        'currency' : currency_symbol,
+        'created_at' : created_at
+    }
+
+
+    
+# the scraper class
 class FlightsScaper:
     '''
     a class that contains and manages all relevant
@@ -292,11 +501,13 @@ class FlightsScaper:
         
     
     @staticmethod
-    def _parse_flight_info(flight_info: str,
-                           journey_type: str) -> dict:
+    def _parse_journey_info(scraped_journey: str,
+                            dates: list[str],
+                            journey_type: str) -> dict:
         '''
         takes a scraped string containing flight 
-        info and parses it into a dict.
+        info for one flight and parses it into a 
+        dict.
 
         this stuff is all a bit in flux, and 
         we have to ascertain whether a given chunk
@@ -305,34 +516,84 @@ class FlightsScaper:
         b) its contents.
         '''
         # remove random ad stuff before flight info
-        flight_info = discard_before_time_substring(flight_info)
+        scraped_journey = discard_before_time_substring(scraped_journey)
 
         # split
-        chunks = flight_info.split('\n')
+        raw_chunks = scraped_journey.split('\n')
 
-        # # extract the information from the lines
-        # departure_time = lines[0]
-        # arrival_time = lines[3]
-        # departure_airport = lines[1]
-        # arrival_airport = lines[4]
-        # duration = lines[7]
-        # airline = lines[11]
-        # price = lines[13]
-        # class_type = lines[14]
+        # drop if ad
+        if journey_is_ad(raw_chunks):
+            return None
+        
+        # identify number of legs by
+        # finding chunks with timings.
+        indexes = find_timing_chunks(raw_chunks)
+        legs = []
+        for i, index in enumerate(indexes):
+            if i+1 < len(indexes):
+                legs.append(raw_chunks[index:indexes[i+1]])
+            else:
+                # last leg - find the duration chunk
+                duration_index = find_last_duration_chunk(raw_chunks)
+                legs.append(raw_chunks[index:duration_index+1])
 
-        # Create a dictionary with the extracted information
-        flight_dict = {
-            'departure_time': departure_time,
-            'arrival_time': arrival_time,
-            'departure_airport': departure_airport,
-            'arrival_airport': arrival_airport,
-            'duration': duration,
-            'airline': airline,
-            'price': price,
-            'class_type': class_type
-        }
+                # now, append the price/meta chunk
+                prices_meta = raw_chunks[duration_index+1:]
 
-        return flight_dict
+        # ensure that we have the same number of
+        # dates as legs
+        if len(dates) != len(legs):
+            raise ValueError(
+                f'Number of dates ({len(dates)}) does not match number of legs ({len(legs)})')
+
+        # iterate over legs, compiling our out dict
+        legs_out = []
+
+        for i, leg in enumerate(legs):
+            # check if we have a penalty
+            for chunk in leg:
+                penalty = chunk_is_penalty(chunk)
+                if penalty:
+                    break
+        
+            # we know that index 0 is the timings
+            dep, arr = parse_timings(leg[0], dates[i], penalty)
+
+            # find the airport chunks
+            airports = []
+            for chunk in leg:
+                if is_airport_chunk(chunk):
+                    airports.append(chunk[:3])
+
+            # find number of stops
+            for chunk in leg:
+                stops = find_parse_stops(chunk)
+                if stops is not None:
+                    break
+
+            # find stop airports, if any
+            stopovers = find_parse_stop_airports(leg)
+
+            # find & parse duration
+            duration = leg[find_last_duration_chunk(leg)]
+            duration = parse_duration(duration)
+
+            # append to legs_out
+            legs_out.append({
+                'departure_timestamp': dep,
+                'arrival_timestamp': arr,
+                'departure_airport': airports[0],
+                'arrival_airport': airports[1],
+                'duration': duration,
+                'n_stops': stops,
+                'stopover_airports': stopovers
+            })
+            
+        # parse price/meta chunk
+        meta_out = parse_prices_meta(prices_meta)
+        out = {'legs': legs_out, 'meta': meta_out}
+        
+        return out
 
 
 '''
