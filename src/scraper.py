@@ -14,14 +14,16 @@
 from dotenv import load_dotenv
 import os
 import yaml
-
 import logging
+
 import datetime as dt 
+import re
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 
 # from bs4 import BeautifulSoup
 
@@ -49,6 +51,29 @@ driver = webdriver.Chrome(service=Service(executable_path=CHROMEDRIVER), options
 ############
 # FUNCTIONS 
 ############
+# helpers
+
+def discard_before_time_substring(s: str) -> str:
+    '''
+    we know that the first relevant
+    bit of info in a flight info string
+    is the departure time, which is always
+    a string like '20:30 - 10:05'.
+
+    we discard every substring before this.
+    '''
+    pattern = r'\d{2}:\d{2} – \d{2}:\d{2}'
+
+    # Find the first match in the string
+    match = re.search(pattern, s)
+
+    if match:
+        # If a match is found, discard everything before it
+        return s[match.start():]
+    else:
+        # If no match is found, return the original string
+        return s
+
 # base stuff
 class FlightsScaper:
     '''
@@ -58,7 +83,7 @@ class FlightsScaper:
     '''
     def __init__(self, browser_driver: str, country: str):
         self.driver = webdriver.Chrome(service=Service(executable_path=browser_driver)) 
-        if country in CONFIG['countries']:
+        if country in CONFIG['permitted_countries']:
             self.country = country
         else:
             raise ValueError(f'{country} not in list of permitted countries')
@@ -121,25 +146,58 @@ class FlightsScaper:
         self.flex = flex
 
         # build url
+        urls = []
         if 'city_options' in journey_type:
             for input in [origin, destination]:
                 if isinstance(input, str):
                     input = [input]
-
-        url = []
-        if journey_type=='city_options-one_way':
             for o in origin:
                 for d in destination:
-                    url.append(self._build_url(o, d, leave_date, return_date, flex, self.base_url))
+                    logging.info(f'building url for {o}-{d}')
+                    url = self._build_url(o, d, leave_date, return_date, flex, self.base_url)
+                    logging.info(f'built url: {url}')
+                    urls.append(url)
+
+        else:
+            url = self._build_url(
+                origin, 
+                destination, 
+                leave_date, 
+                return_date, 
+                flex, 
+                self.base_url)
+            logging.info(f'built url: {url}')
+            urls.append(url)
+            
+        self.urls = urls
 
 
-        self.url = self._build_url(origin, destination, leave_date, return_date, flex, self.base_url)
+    def get_flight_options(self,
+                           url: str) -> list:
+        '''
+        loads the url, scrapes the options,
+        returns a list of dict with prices.
+        '''
+        # load url
+        self.driver.get(url)
 
+        # click the cookie decline button,
+        # if it exists
+        try:
+            button = driver.find_element(
+                By.XPATH, 
+                CONFIG['country'][self.country]['cookie_decline_button'])
+            button.click()
+        except NoSuchElementException:
+            # no button - no problem
+            pass
+        
+        # get results
+        results = self.driver.find_elements(
+            By.XPATH,
+            CONFIG['country'][self.country]['result_blocks'])
+        
 
-        pass
-
-    def get_prices():
-        pass
 
     def write_data():
         pass
@@ -231,8 +289,66 @@ class FlightsScaper:
             return code
         else:
             raise ValueError(f'{code} needs to be len==3, only letters.')
+        
+    
+    @staticmethod
+    def _parse_flight_info(flight_info: str,
+                           journey_type: str) -> dict:
+        '''
+        takes a scraped string containing flight 
+        info and parses it into a dict.
+
+        this stuff is all a bit in flux, and 
+        we have to ascertain whether a given chunk
+        is what we think it is as a function of
+        a) where it is in the sequence of chunks, and
+        b) its contents.
+        '''
+        # remove random ad stuff before flight info
+        flight_info = discard_before_time_substring(flight_info)
+
+        # split
+        chunks = flight_info.split('\n')
+
+        # # extract the information from the lines
+        # departure_time = lines[0]
+        # arrival_time = lines[3]
+        # departure_airport = lines[1]
+        # arrival_airport = lines[4]
+        # duration = lines[7]
+        # airline = lines[11]
+        # price = lines[13]
+        # class_type = lines[14]
+
+        # Create a dictionary with the extracted information
+        flight_dict = {
+            'departure_time': departure_time,
+            'arrival_time': arrival_time,
+            'departure_airport': departure_airport,
+            'arrival_airport': arrival_airport,
+            'duration': duration,
+            'airline': airline,
+            'price': price,
+            'class_type': class_type
+        }
+
+        return flight_dict
 
 
+'''
+TO DO:
+- finish off the flight info parsing function, 
+  we need to have this be very robust to all 
+  the intricacies and differences of how the
+  info is presented on the page.
+- see what's up with the different xpath/
+  country combinations. do they change randomly?
+- write the function for writing the data to
+  file or db. 
+- test all this stuff, and see whether we can get it
+  to work on the server.
+
+'''
 
 
 
