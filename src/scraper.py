@@ -256,6 +256,37 @@ def find_parse_stop_airports(leg: list[str]) -> list:
     return leg[index].split(', ')
 
 
+def find_full_results(tmp_results: list,
+                      n_legs: int = 2,
+                      currency_symbol: str = '£') -> list:
+    '''
+    having changed the element retrieval method
+    from xpath to css selectors, we get too many
+    results, quite a few of which aren't useable
+    as they're missing something. 
+    so, we need to identify the proper results.
+
+    n_legs is a stand-in for the number of legs
+    (here, one-way: 1, return: 2, multi-city: n)
+    a journey has, but really it's the number of
+    dashes we're looking for in the result 
+    substrings.
+    '''
+    actual_results = []
+
+    for result in tmp_results:
+        scraped_journey = discard_before_time_substring(result.text)
+        raw_chunks = scraped_journey.split('\n')
+
+        dash_count = raw_chunks.count('-')
+        curr_count = sum(currency_symbol in chunk for chunk in raw_chunks)
+
+        if dash_count == n_legs and curr_count == 1:
+            actual_results.append(result)
+        
+    return actual_results
+
+
 # prices/meta helpers
 def parse_prices_meta(raw_chunks: list[str],
                       currency_symbol: str,
@@ -274,14 +305,14 @@ def parse_prices_meta(raw_chunks: list[str],
     
     # parse the price to int
     raw_price = chunks[3]
-    raw_price.replace(currency_symbol, '')
+    raw_price = re.sub(r'\D', '', raw_price)
     price = int(raw_price)
     
     return {
-        'airline' : chunks[0],
-        'cabin_baggage' : chunks[1],
-        'checked_baggage' : chunks[2],
-        'class' : chunks[4],
+        'airline' : chunks[0].split(', '),
+        'cabin_baggage' : int(chunks[1]),
+        'checked_baggage' : int(chunks[2]),
+        'class' : chunks[4].split(', '),
         'price' : price,
         'currency' : currency_symbol,
         'created_at' : created_at
@@ -350,8 +381,6 @@ class FlightsScaper:
         for date in leave_date:
             self._validate_date(date)
 
-        
-            
         if return_date is not None:
             self._validate_date(return_date)
         
@@ -421,39 +450,46 @@ class FlightsScaper:
         
         # wait for results to load
         logging.debug(f'waiting for page to load...')
-        WebDriverWait(self.driver, 10).until(
+        WebDriverWait(self.driver, 20).until(
             EC.presence_of_element_located(
-                (By.XPATH,
-                CONFIG['country'][self.country]['xpaths']['show_more_button'])))
+                (By.CSS_SELECTOR,
+                CONFIG['country'][self.country]['css_selectors']['show_more_button'])))
 
         # append more results
         more_results_button = self.driver.find_element(
-            By.XPATH,
-            CONFIG['country'][self.country]['xpaths']['show_more_button'])
+            By.CSS_SELECTOR,
+            CONFIG['country'][self.country]['css_selectors']['show_more_button'])
         more_results_button.click()
         
         # append results
         logging.debug(f'attempting to find results using xpath: {CONFIG["country"][self.country]["xpaths"]["result_blocks"]}')
-        results = self.driver.find_elements(
-            By.XPATH,
-            CONFIG['country'][self.country]['xpaths']['result_blocks'])
-        logging.debug(f'retrieved {len(results)} results')
+        self.tmp_results = self.driver.find_elements(
+            By.CSS_SELECTOR,
+            CONFIG['country'][self.country]['css_selectors']['result_blocks'])
+        logging.debug(f'retrieved {len(self.tmp_results)} results')
         
         # parse results
         logging.debug(f'attempting to parse results...')
-        if self.journey_type == 'round_trip':
-            dates = list(self.leave_date).append(self.return_date)
-        else:
-            dates = list(self.leave_date)
+        dates = self.leave_date.copy()
+        if 'round_trip' in self.journey_type:
+            dates.append(self.return_date)
         
-        logging.debug(f'dates dtype: {type(dates)}')
-        logging.debug(f'dates: {dates}') 
+        # logging.debug(f'dates dtype: {type(dates)}')
+        # logging.debug(f'dates: {dates}') 
+            
+        self.valid_results = find_full_results(
+            tmp_results=self.tmp_results,
+            n_legs=len(dates),
+            currency_symbol=CONFIG['country'][self.country]['currency_symbol']
+        )   
+        logging.debug(f'found {len(self.valid_results)} valid results')
 
-        for result in results:
+        for result in self.valid_results:
             journey_option = self._parse_journey_info(
                 result.text,
                 dates,
-                self.journey_type)
+                self.journey_type,
+                self.country)
             if journey_option is not None:
                 self.journey_options.append(journey_option)
         
@@ -564,7 +600,8 @@ class FlightsScaper:
     @staticmethod
     def _parse_journey_info(scraped_journey: str,
                             dates: list[str],
-                            journey_type: str) -> dict:
+                            journey_type: str,
+                            country: str) -> dict:
         '''
         takes a scraped string containing flight 
         info for one flight and parses it into a 
@@ -576,6 +613,8 @@ class FlightsScaper:
         a) where it is in the sequence of chunks, and
         b) its contents.
         '''
+        timestamp = dt.datetime.now()
+
         # remove random ad stuff before flight info
         scraped_journey = discard_before_time_substring(scraped_journey)
 
@@ -633,7 +672,10 @@ class FlightsScaper:
                     break
 
             # find stop airports, if any
-            stopovers = find_parse_stop_airports(leg)
+            if stops > 0:
+                stopovers = find_parse_stop_airports(leg)
+            else:
+                stopovers = None
 
             # find & parse duration
             duration = leg[find_last_duration_chunk(leg)]
@@ -651,7 +693,18 @@ class FlightsScaper:
             })
             
         # parse price/meta chunk
-        meta_out = parse_prices_meta(prices_meta)
+        try:
+            meta_out = parse_prices_meta(
+                raw_chunks=prices_meta,
+                currency_symbol=CONFIG['country'][COUNTRY]['currency_symbol'],
+                created_at=timestamp)
+        except ValueError as e:
+            if 'chunks is not length 5' in str(e):
+                logging.error(f'Error parsing price/meta chunk: {e}')
+                return None
+            else:
+                raise
+        
         out = {'legs': legs_out, 'meta': meta_out}
         
         return out

@@ -45,3 +45,14 @@ country:
       result_blocks: '/html/body/div[2]/div[1]/main/div/div[2]/div[2]/div[1]/div[2]/div[1]/div[2]/div[5]/div[2]/div/div/div/div[*]'
       # show_more_button: '//*[@id="listWrapper"]/div/div[3]/div'
       show_more_button: '/html/body/div[2]/div[1]/main/div/div[2]/div[2]/div[1]/div[2]/div[1]/div[3]/div[2]/div/div/div'
+    css_selectors:
+      result_blocks: "[class*='nrc6']"
+      show_more_button: "[class*='-button show-more-button']"
+
+# '''
+# but i have a theory that the `ULvh` keeps randomly changing (perhaps to make scraping harder)? 
+
+# is there a way i can look for a partial match? '
+
+# '''
+# button = driver.find_element(By.CSS_SELECTOR, "[class*='-button show-more-button']")
