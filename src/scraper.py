@@ -255,6 +255,7 @@ def find_parse_stop_airports(leg: list[str]) -> list:
     
     return leg[index].split(', ')
 
+
 # prices/meta helpers
 def parse_prices_meta(raw_chunks: list[str],
                       currency_symbol: str,
@@ -285,7 +286,6 @@ def parse_prices_meta(raw_chunks: list[str],
         'currency' : currency_symbol,
         'created_at' : created_at
     }
-
 
     
 # the scraper class
