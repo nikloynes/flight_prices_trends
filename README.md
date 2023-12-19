@@ -11,6 +11,8 @@ At its core, the software incorporates a scraper for the ~~skyscanner~~ kayak fl
 ### getting started
 - make sure you have a `chromedriver` compatible with the version of chrome installed on your system. you will need to add the full path to it as `CHROMEDRIVER` in your `.env` file. 
 - make sure you have `sqlite3` installed for your system. initialise a new instance of the database by running `sqlite3 your_db_name.db < schema.sql`, and adding its full path as `DB_PATH` to `.env`.
+- recommended: set up a `virtualenv`
+- install all python dependencies: `pip install -r requirements.txt` 
 
 ### TO DO
 1. scraper
