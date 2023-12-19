@@ -101,7 +101,6 @@ class FlightSearch(BaseModel):
     return_date: Optional[datetime] = None
     flex: Optional[int] = None
 
-
     def create_id(self):
         '''
         creates a hashed
