@@ -21,6 +21,12 @@ permitted_journey_types:
   - 'city_options-one_way'
   - 'city_options-round_trip'
   # - 'city_options-multi_city'
+permitted_sort_by:
+  - 'price'
+  - 'duration_leg_*'
+  - 'duration_total'
+  - 'n_stops_leg_*'
+  - 'n_stops_total'
 max_city_options: 6
 country:
   de:
@@ -46,6 +52,7 @@ country:
       # show_more_button: '//*[@id="listWrapper"]/div/div[3]/div'
       show_more_button: '/html/body/div[2]/div[1]/main/div/div[2]/div[2]/div[1]/div[2]/div[1]/div[3]/div[2]/div/div/div'
     css_selectors:
+      progress_bar: "[id*='-progress-bar'][class*='progress-bar-sticky']"
       result_blocks: "[class*='nrc6']"
       show_more_button: "[class*='-button show-more-button']"
 
@@ -56,3 +63,4 @@ country:
 
 # '''
 # button = driver.find_element(By.CSS_SELECTOR, "[class*='-button show-more-button']")
+#c3vYw > div > div<div id="c4TFe-progress-bar" class="progress-bar-sticky">

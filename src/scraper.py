@@ -8,6 +8,8 @@
 # NL, 17/12/23 -- moving from skyscanner to kayak, working out
 #                 base functionality, config, etc.
 # NL, 18/12/23 -- scraper class returns data.
+# NL, 19/12/23 -- fleshed out (wait for progress bar),
+#                 added sorting functionality
 
 ############
 # IMPORTS 
@@ -19,18 +21,14 @@ import logging
 
 import datetime as dt 
 import re
+import fnmatch
 
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException
-
-
-
-# from bs4 import BeautifulSoup
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 load_dotenv()
 
@@ -38,11 +36,8 @@ load_dotenv()
 # PATHS & CONSTANTS 
 ############
 CHROMEDRIVER = os.getenv('CHROMEDRIVER')
-# URL = 'https://www.skyscanner.de/transport/fluge/fran/del/231229/240123/?adultsv2=1&cabinclass=economy&childrenv2=&inboundaltsenabled=false&outboundaltsenabled=false&preferdirects=false&ref=home&rtn=1'
-# URL = 'https://www.kayak.co.uk/flights/FRA-DEL/2023-12-29/2024-01-23'
-
 CONFIG = yaml.load(open('config.yaml'), Loader=yaml.FullLoader)
-COUNTRY = 'uk'
+COUNTRY = 'uk' # just a lazy default
 
 ############
 # INIT 
@@ -209,10 +204,10 @@ def chunk_is_penalty(s: str) -> int | None:
     match = re.search(pattern, s)
     if match:
         # extract the integer
-        logging.debug(f'penalty chunk found: {s[match.start():match.end()]}')
+        logging.info(f'penalty chunk found: {s[match.start():match.end()]}')
         return int(s[match.start()+1:match.end()])
     else:
-        logging.debug(f'no penalty chunk found')
+        logging.info(f'no penalty chunk found')
         return None
 
 
@@ -226,14 +221,14 @@ def find_parse_stops(s: str) -> int:
     match = re.search(pattern, s)
     if match:
         # extract the integer
-        logging.debug(f'stops chunk found: {s[match.start():match.end()]}')
+        logging.info(f'stops chunk found: {s[match.start():match.end()]}')
         stops = s[match.start():match.end()]
         if stops == 'direct':
             return 0
         else:
             return int(stops.split()[0])
     else:
-        logging.debug(f'no stops chunk found')
+        logging.info(f'no stops chunk found')
         return None
     
 
@@ -328,7 +323,7 @@ class FlightsScaper:
     data from kayak. 
     '''
     def __init__(self, 
-                 country: str,
+                 country: str = COUNTRY,
                  browser_driver: str = CHROMEDRIVER): 
         self.driver = webdriver.Chrome(service=Service(executable_path=browser_driver)) 
         if country in CONFIG['permitted_countries']:
@@ -340,13 +335,13 @@ class FlightsScaper:
         logging.info(f'FlightsScraper initialised with country {self.country} base url {self.base_url}')
         
 
-    def new_journey(self,
-                    journey_type: str,
-                    origin: str | list[str],
-                    destination: str | list[str],
-                    leave_date: str | list[str],
-                    return_date: str | None,
-                    flex: str | int | None = None):
+    def new_journey_search(self,
+                           journey_type: str,
+                           origin: str | list[str],
+                           destination: str | list[str],
+                           leave_date: str | list[str],
+                           return_date: str | None,
+                           flex: str | int | None = None):
         '''
         creates a new journey object 
         with a journey_type. journey_type
@@ -363,7 +358,11 @@ class FlightsScaper:
         '''
         if journey_type not in CONFIG['permitted_journey_types']:
             raise ValueError(f'{journey_type} not a permitted journey type')
-        
+
+        if flex is not None:
+            if flex not in CONFIG['permitted_flex']:
+                raise ValueError(f'{flex} not a permitted flex parameter')
+            
         # validate inputs
         for input in [origin, destination]:
             # max number of city options
@@ -420,6 +419,39 @@ class FlightsScaper:
         self.urls = urls
         self.journey_options = []
 
+    
+    def get_journey_search(self,
+                           convert_datetimes: bool = True) -> dict:
+        '''
+        returns the journey search
+        params as a dict.
+        '''
+        leave_date = self.leave_date
+        return_date = self.return_date
+
+        if convert_datetimes:
+            if isinstance(self.leave_date, list):
+                leave_date = [dt.datetime.strptime(x, '%Y-%m-%d') for x in self.leave_date]
+            else:
+                leave_date = dt.datetime.strptime(self.leave_date, '%Y-%m-%d')
+            if self.return_date is not None:
+                return_date = dt.datetime.strptime(self.return_date, '%Y-%m-%d')
+
+        journey_search = {
+            'journey_type': self.journey_type,
+            'origin': self.origin,
+            'destination': self.destination,
+            'leave_date': leave_date,
+        }
+
+        if self.return_date is not None:
+            journey_search['return_date'] = return_date
+
+        if self.flex is not None:
+            journey_search['flex'] = self.flex
+
+        return journey_search
+    
 
     def get_flight_options(self,
                            url: str) -> list:
@@ -428,11 +460,11 @@ class FlightsScaper:
         returns a list of dict with prices.
         '''
         # load url
-        logging.debug(f'loading url: {url}')
+        logging.info(f'loading url: {url}')
         self.driver.get(url)
 
         # wait for the cookie button
-        logging.debug('waiting for cookie button to load')
+        logging.info('waiting for cookie button to load')
         WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located(
                 (By.XPATH,
@@ -443,14 +475,26 @@ class FlightsScaper:
                 By.XPATH, 
                 CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])
             button.click()
-            logging.debug(f'cookie decline button clicked')
+            logging.info(f'cookie decline button clicked')
         except NoSuchElementException:
             # no button - no problem
-            logging.debug(f'no cookie decline button found')
+            logging.info(f'no cookie decline button found')
             pass
         
         # wait for results to load
-        logging.debug(f'waiting for page to load...')
+        # first, we wait for the progress bar to complete
+        logging.info(f'waiting for progress bar to complete...')
+        try:
+            WebDriverWait(self.driver, 20).until(
+                EC.invisibility_of_element_located(
+                    (By.CSS_SELECTOR,
+                    CONFIG['country'][self.country]['css_selectors']['progress_bar'])))
+        except TimeoutException:
+            logging.info(f'progress bar wasnt cought...')
+            pass
+
+        # now, wait for more_results button to be avail
+        logging.info(f'waiting for page to load...')
         WebDriverWait(self.driver, 20).until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR,
@@ -463,27 +507,27 @@ class FlightsScaper:
         more_results_button.click()
         
         # append results
-        logging.debug(f'attempting to find results using xpath: {CONFIG["country"][self.country]["xpaths"]["result_blocks"]}')
+        logging.info(f'attempting to find results using xpath: {CONFIG["country"][self.country]["xpaths"]["result_blocks"]}')
         self.tmp_results = self.driver.find_elements(
             By.CSS_SELECTOR,
             CONFIG['country'][self.country]['css_selectors']['result_blocks'])
-        logging.debug(f'retrieved {len(self.tmp_results)} results')
+        logging.info(f'retrieved {len(self.tmp_results)} results')
         
         # parse results
-        logging.debug(f'attempting to parse results...')
+        logging.info(f'attempting to parse results...')
         dates = self.leave_date.copy()
         if 'round_trip' in self.journey_type:
             dates.append(self.return_date)
         
-        # logging.debug(f'dates dtype: {type(dates)}')
-        # logging.debug(f'dates: {dates}') 
+        # logging.info(f'dates dtype: {type(dates)}')
+        # logging.info(f'dates: {dates}') 
             
         self.valid_results = find_full_results(
             tmp_results=self.tmp_results,
             n_legs=len(dates),
             currency_symbol=CONFIG['country'][self.country]['currency_symbol']
         )   
-        logging.debug(f'found {len(self.valid_results)} valid results')
+        logging.info(f'found {len(self.valid_results)} valid results')
 
         for result in self.valid_results:
             journey_option = self._parse_journey_info(
@@ -495,8 +539,40 @@ class FlightsScaper:
                 self.journey_options.append(journey_option)
         
 
+    def sort_journey_options(self,
+                             sort_by: str = 'price',
+                             write_mode: str = 'overwrite') -> list[dict]:
+        '''
+        convenience wrapper aound the staticmethod
+        `sort_journeys`, which takes our 
+        journey_options and sorts them by
+        desired criteria.
+        
+        if write_mode=='overwrite', then we 
+        overwrite the existing journey_options.
+        if write_mode=='distinct', we write this
+        a new attribute, `sorted_journey_options`
+        '''
+        if write_mode=='overwrite':
+            self.journey_options = self.sort_journeys(
+                self.journey_options,
+                sort_by=sort_by)
+        elif write_mode=='distinct':
+            self.sorted_journey_options = self.sort_journeys(
+                self.journey_options,
+                sort_by=sort_by)
+        else:
+            raise ValueError(f'{write_mode} not a permitted write_mode parameter')
 
-    def write_data():
+
+    def journey_options_to_csv(filepath: str):
+        '''
+        writes our journey options to a csv
+        file. every leg of a journey is a row,
+        and has the meta info attached (meaning)
+        we're duplicating some info, but it's
+        easier to work with this way.
+        '''
         pass
     
 
@@ -516,13 +592,13 @@ class FlightsScaper:
         all origin, destination and leave_date
         arguments must be lists of equal length.
         '''
-        logging.debug(f'input args:')
-        logging.debug(f'origin: {origin}')
-        logging.debug(f'destination: {destination}')
-        logging.debug(f'leave_date: {leave_date}')
-        logging.debug(f'return_date: {return_date}')
-        logging.debug(f'flex: {flex}')
-        logging.debug(f'base_url: {base_url}')
+        logging.info(f'input args:')
+        logging.info(f'origin: {origin}')
+        logging.info(f'destination: {destination}')
+        logging.info(f'leave_date: {leave_date}')
+        logging.info(f'return_date: {return_date}')
+        logging.info(f'flex: {flex}')
+        logging.info(f'base_url: {base_url}')
 
         # check inputs go with our journey type,
         # define journey type
@@ -710,6 +786,45 @@ class FlightsScaper:
         
         return out
 
+    
+    @staticmethod
+    def sort_journeys(journey_options: list[dict],
+                      sort_by: str = 'price') -> list[dict]:
+        '''
+        we might want to sort our journeys,
+        e.g. by price, duration or number of
+        stops
+        '''
+        if not any(
+            fnmatch.fnmatch(sort_by, pattern) for pattern in CONFIG['permitted_sort_by']):
+            raise ValueError(f'{sort_by} not a permitted sort_by parameter')
+
+        if 'duration' in sort_by:
+            if 'leg' in sort_by:
+                leg_n = int(sort_by.split('_')[-1])-1
+                return sorted(
+                    journey_options, 
+                    key=lambda x: int(x['legs'][leg_n]['duration'].total_seconds()))
+            elif 'total' in sort_by:
+                return sorted(
+                    journey_options, 
+                    key=lambda x: sum([int(leg['duration'].total_seconds()) for leg in x['legs']]))
+            
+        elif 'n_stops' in sort_by:
+            if 'leg' in sort_by:
+                leg_n = int(sort_by.split('_')[-1])-1
+                return sorted(
+                    journey_options, 
+                    key=lambda x: x['legs'][leg_n]['n_stops'])
+            elif 'total' in sort_by:
+                return sorted(
+                    journey_options, 
+                    key=lambda x: sum([leg['n_stops'] for leg in x['legs']]))
+            
+        # price option is simpler
+        return sorted(
+            journey_options, 
+            key=lambda x: (x['meta'][sort_by] if sort_by in x['meta'] else x[sort_by]))
 
 '''
 update 18/12/23:
