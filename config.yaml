@@ -55,7 +55,38 @@ country:
       progress_bar: "[id*='-progress-bar'][class*='progress-bar-sticky']"
       result_blocks: "[class*='nrc6']"
       show_more_button: "[class*='-button show-more-button']"
-
+insert_map:
+  journeys: 
+    - journey_id
+    - search_id
+    - n_legs
+    - cabin_baggage
+    - checked_baggage
+    - class
+  legs:
+    - leg_id
+    - journey_id
+    - leg_number
+    - departure_time
+    - arrival_time
+    - departure_airport
+    - arrival_airport
+    - duration
+    - n_stops
+    - stopover_airports
+  prices:
+    - journey_id
+    - price
+    - currency
+    - created_at
+  flight_searches:
+    - search_id
+    - journey_type
+    - origin
+    - destination
+    - leave_date
+    - return_date
+    - flex
 # '''
 # but i have a theory that the `ULvh` keeps randomly changing (perhaps to make scraping harder)? 
 

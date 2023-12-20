@@ -4,24 +4,27 @@ CREATE TABLE journeys (
     n_legs INTEGER,
     cabin_baggage INTEGER,
     checked_baggage INTEGER,
-    class_ TEXT,
+    class TEXT,
     FOREIGN KEY(search_id) REFERENCES flight_searches(search_id)
 );
 
 CREATE TABLE legs (
-    leg_id INTEGER PRIMARY KEY,
+    leg_id TEXT PRIMARY KEY,
     journey_id INTEGER,
+    leg_number INTEGER,
     departure_time TEXT,
     arrival_time TEXT,
     departure_airport TEXT,
     arrival_airport TEXT,
-    airline TEXT,
+    duration INTEGER,
+    n_stops INTEGER,
+    stopover_airports TEXT,
     FOREIGN KEY(journey_id) REFERENCES journeys(journey_id)
 );
 
 CREATE TABLE prices (
-    price_id INTEGER PRIMARY KEY,
-    journey_id TEXT
+    price_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journey_id TEXT,
     price REAL,
     currency TEXT,
     created_at TIMESTAMP,

@@ -95,8 +95,8 @@ class Journey(BaseModel):
 # flight search
 class FlightSearch(BaseModel):
     journey_type: str
-    origin: str
-    destination: str
+    origin: str | List[str]
+    destination: str | List[str]
     leave_date: datetime | List[datetime]
     return_date: Optional[datetime] = None
     flex: Optional[int] = None
