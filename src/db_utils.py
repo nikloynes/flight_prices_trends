@@ -206,7 +206,10 @@ def parse_flight_search(data: dict) -> tuple:
     else:
         leave_date = data['leave_date'].isoformat()
     
-    return_date = data['return_date'].isoformat()
+    if 'return_date' in data.keys():
+        return_date = data['return_date'].isoformat()
+    else:
+        return_date = None
     
     if 'flex' in data.keys():
         flex = data['flex']

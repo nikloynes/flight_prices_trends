@@ -340,7 +340,7 @@ class FlightsScaper:
                            origin: str | list[str],
                            destination: str | list[str],
                            leave_date: str | list[str],
-                           return_date: str | None,
+                           return_date: str | None = None,
                            flex: str | int | None = None):
         '''
         creates a new journey object 
@@ -495,19 +495,24 @@ class FlightsScaper:
 
         # now, wait for more_results button to be avail
         logging.info(f'waiting for page to load...')
-        WebDriverWait(self.driver, 20).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR,
-                CONFIG['country'][self.country]['css_selectors']['show_more_button'])))
+        try:
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR,
+                    CONFIG['country'][self.country]['css_selectors']['show_more_button'])))
 
-        # append more results
-        more_results_button = self.driver.find_element(
-            By.CSS_SELECTOR,
-            CONFIG['country'][self.country]['css_selectors']['show_more_button'])
-        more_results_button.click()
-        
+            # append more results
+            more_results_button = self.driver.find_element(
+                By.CSS_SELECTOR,
+                CONFIG['country'][self.country]['css_selectors']['show_more_button'])
+            more_results_button.click()
+        except TimeoutException:
+            logging.warning(f'unable to find more_results button. continuing.')
+            pass
+
         # append results
-        logging.info(f'attempting to find results using xpath: {CONFIG["country"][self.country]["xpaths"]["result_blocks"]}')
+        logging.info(f'attempting to find results using css selector:') 
+        logging.info(f'{CONFIG["country"][self.country]["css_selectors"]["result_blocks"]}')
         self.tmp_results = self.driver.find_elements(
             By.CSS_SELECTOR,
             CONFIG['country'][self.country]['css_selectors']['result_blocks'])
