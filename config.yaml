@@ -87,11 +87,6 @@ insert_map:
     - leave_date
     - return_date
     - flex
-# '''
-# but i have a theory that the `ULvh` keeps randomly changing (perhaps to make scraping harder)? 
-
-# is there a way i can look for a partial match? '
-
-# '''
-# button = driver.find_element(By.CSS_SELECTOR, "[class*='-button show-more-button']")
-#c3vYw > div > div<div id="c4TFe-progress-bar" class="progress-bar-sticky">
+  compound_airport_codes:
+    - compound_code
+    - airport_code
