@@ -417,9 +417,10 @@ class FlightsScaper:
         # build url
         urls = []
         if 'city_options' in journey_type:
-            for input in [origin, destination]:
-                if isinstance(input, str):
-                    input = [input]
+            if isinstance(origin, str):
+                origin = [origin]
+            if isinstance(destination, str):
+                destination = [destination]
             for o in origin:
                 for d in destination:
                     logging.info(f'building url for {o}-{d}')
