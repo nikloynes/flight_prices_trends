@@ -19,6 +19,7 @@ import os
 from dotenv import load_dotenv
 import yaml
 import logging
+from typing import Literal
 
 import sqlite3
 from src.id_factory import Journey, FlightSearch
@@ -309,6 +310,44 @@ def insert_compound_airport(new_compound_code: str,
         
 
 # retrieving data
+def get_flight_component_by_id(
+        flight_component: Literal['search', 'journey', 'leg', 'price'],
+        id: str) -> dict:
+    '''
+    returns the data for a given
+    flight component, by id.
+
+    doesn't merge data from multiple
+    tables.
+    '''    
+    base_q = 'SELECT * FROM {} WHERE {}_id = ?'
+
+    if flight_component == 'search':
+        q = base_q.format('flight_searches', 'search')
+    elif flight_component == 'journey':
+        q = base_q.format('journeys', 'journey')
+    elif flight_component == 'leg':
+        q = base_q.format('legs', 'leg')
+    elif flight_component == 'price':
+        q = base_q.format('prices', 'journey')
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        logging.debug(f'connected to db at {DB_PATH}')
+        
+        cursor = conn.cursor()
+        logging.debug(f'created cursor')
+
+        cursor.execute(q, (id,))
+        logging.debug(f'executed query')
+        
+        result = cursor.fetchone()
+        # also retrieve the column names
+        # for the table
+        columns = [x[0] for x in cursor.description]
+
+    return {k : v for k, v in zip(columns, result)}
+
+
 def match_compound_airport(code: str) -> str:
     '''
     checks if the code is
