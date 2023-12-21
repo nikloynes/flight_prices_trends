@@ -3,3 +3,4 @@ pydantic_core==2.14.5
 python-dotenv==1.0.0
 PyYAML==6.0.1
 selenium==4.16.0
+airportsdata==20231017
