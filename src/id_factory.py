@@ -12,6 +12,8 @@
 # ids are generated (and stored)
 
 # NL, 19/12/23
+# NL, 21/12/23 -- updating meta class to allow
+#                 for None-vals for baggage
 
 ############
 # IMPORTS 
@@ -60,8 +62,8 @@ class Leg(BaseModel):
 
 class Meta(BaseModel):
     airline: List[str]
-    cabin_baggage: int
-    checked_baggage: int
+    cabin_baggage: int | None
+    checked_baggage: int | None
     class_: List[str] = Field(alias='class')
     price: int
     currency: str

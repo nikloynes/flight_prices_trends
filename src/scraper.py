@@ -286,7 +286,8 @@ def find_full_results(tmp_results: list,
 # prices/meta helpers
 def parse_prices_meta(raw_chunks: list[str],
                       currency_symbol: str,
-                      created_at: dt.datetime) -> dict:
+                      created_at: dt.datetime,
+                      journey_type: str) -> dict:
     '''
     takes a list of strings containing
     the price and meta info for a given
@@ -296,19 +297,32 @@ def parse_prices_meta(raw_chunks: list[str],
     # first, drop 'Select' and ensure 
     # we have a list of length 5
     chunks = [x for x in raw_chunks if x != 'Select']
-    if len(chunks) != 5:
-        raise ValueError(f'chunks is not length 5: {chunks}')
+
+    if 'multi_city' not in journey_type:
+        raw_price_idx = 3
+        cabin_baggage = int(chunks[1])
+        checked_baggage = int(chunks[2])
+        if len(chunks) != 5:
+            raise ValueError(f'chunks is not length 5: {chunks}')
+    else:
+        raw_price_idx = 1
+        cabin_baggage = None
+        checked_baggage = None
+        # for multi-city, we don't seem to have bag 
+        # info, so we have to drop that chunk
+        if len(chunks) != 3:
+            raise ValueError(f'chunks is not length 3: {chunks}')
     
     # parse the price to int
-    raw_price = chunks[3]
+    raw_price = chunks[raw_price_idx]
     raw_price = re.sub(r'\D', '', raw_price)
     price = int(raw_price)
     
     return {
         'airline' : chunks[0].split(', '),
-        'cabin_baggage' : int(chunks[1]),
-        'checked_baggage' : int(chunks[2]),
-        'class' : chunks[4].split(', '),
+        'cabin_baggage' : cabin_baggage,
+        'checked_baggage' : checked_baggage,
+        'class' : chunks[len(chunks)-1].split(', '),
         'price' : price,
         'currency' : currency_symbol,
         'created_at' : created_at
@@ -360,20 +374,25 @@ class FlightsScaper:
             raise ValueError(f'{journey_type} not a permitted journey type')
 
         if flex is not None:
-            if flex not in CONFIG['permitted_flex']:
+            if flex not in CONFIG['permitted_flex'].keys():
                 raise ValueError(f'{flex} not a permitted flex parameter')
             
         # validate inputs
         for input in [origin, destination]:
             # max number of city options
-            if len(input) > CONFIG['max_city_options']:
-                raise ValueError(f'Number of {input} exceeds permitted maximum of {CONFIG["max_city_options"]}')
+            if isinstance(input, list):
+                if len(input) > CONFIG['max_city_options']:
+                    raise ValueError(f'Number of {input} exceeds permitted maximum of {CONFIG["max_city_options"]}')
             
             # validate iata codes
             if isinstance(input, str):
                 input = [input]
-            for code in input:
-                self._validate_iata_code(code)
+            for airport_code in input:
+                # NOTE - right now we're just
+                # validating the string, we're
+                # not checking that the airport
+                # actually exists
+                self._validate_iata_code(airport_code)
             
         # validate dates
         if isinstance(leave_date, str):
@@ -382,6 +401,9 @@ class FlightsScaper:
             self._validate_date(date)
 
         if return_date is not None:
+            if journey_type=='multi_city':
+                raise ValueError('return_date not permitted for multi_city journey searches.\
+                                 supply all dates in leave_date param as a list.')
             self._validate_date(return_date)
         
         # add this stuff to our class
@@ -526,7 +548,10 @@ class FlightsScaper:
         
         # logging.info(f'dates dtype: {type(dates)}')
         # logging.info(f'dates: {dates}') 
-            
+        
+        # find results that are full, 
+        # responses where the reponse matches 
+        # the number of legs we're looking for
         self.valid_results = find_full_results(
             tmp_results=self.tmp_results,
             n_legs=len(dates),
@@ -779,9 +804,10 @@ class FlightsScaper:
             meta_out = parse_prices_meta(
                 raw_chunks=prices_meta,
                 currency_symbol=CONFIG['country'][COUNTRY]['currency_symbol'],
-                created_at=timestamp)
+                created_at=timestamp,
+                journey_type=journey_type)
         except ValueError as e:
-            if 'chunks is not length 5' in str(e):
+            if 'chunks is not length' in str(e):
                 logging.error(f'Error parsing price/meta chunk: {e}')
                 return None
             else:
