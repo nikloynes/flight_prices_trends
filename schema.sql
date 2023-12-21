@@ -58,3 +58,8 @@ CREATE TABLE journeys_prices (
     FOREIGN KEY(journey_id) REFERENCES journeys(journey_id),
     FOREIGN KEY(price_id) REFERENCES prices(price_id)
 );
+
+CREATE TABLE compound_airport_codes (
+    compound_code TEXT PRIMARY KEY,
+    included_airport_code TEXT
+);
