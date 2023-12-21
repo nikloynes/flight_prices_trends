@@ -10,6 +10,7 @@
 # NL, 18/12/23 -- scraper class returns data.
 # NL, 19/12/23 -- fleshed out (wait for progress bar),
 #                 added sorting functionality
+# NL, 21/12/23 -- bugfixes for different journey types
 
 ############
 # IMPORTS 
@@ -22,13 +23,18 @@ import logging
 import datetime as dt 
 import re
 import fnmatch
+from time import sleep
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    NoSuchElementException, 
+    TimeoutException,
+    StaleElementReferenceException
+)
 
 load_dotenv()
 
@@ -299,19 +305,19 @@ def parse_prices_meta(raw_chunks: list[str],
     chunks = [x for x in raw_chunks if x != 'Select']
 
     if 'multi_city' not in journey_type:
+        if len(chunks) != 5:
+            raise ValueError(f'chunks is not length 5: {chunks}')
         raw_price_idx = 3
         cabin_baggage = int(chunks[1])
         checked_baggage = int(chunks[2])
-        if len(chunks) != 5:
-            raise ValueError(f'chunks is not length 5: {chunks}')
     else:
-        raw_price_idx = 1
-        cabin_baggage = None
-        checked_baggage = None
         # for multi-city, we don't seem to have bag 
         # info, so we have to drop that chunk
         if len(chunks) != 3:
             raise ValueError(f'chunks is not length 3: {chunks}')
+        raw_price_idx = 1
+        cabin_baggage = None
+        checked_baggage = None
     
     # parse the price to int
     raw_price = chunks[raw_price_idx]
@@ -488,18 +494,18 @@ class FlightsScaper:
 
         # wait for the cookie button
         logging.info('waiting for cookie button to load')
-        WebDriverWait(self.driver, 10).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])))
-
         try:
+            WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH,
+                    CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])))
+
             button = self.driver.find_element(
                 By.XPATH, 
                 CONFIG['country'][self.country]['xpaths']['cookie_decline_button'])
             button.click()
             logging.info(f'cookie decline button clicked')
-        except NoSuchElementException:
+        except (NoSuchElementException, TimeoutException):
             # no button - no problem
             logging.info(f'no cookie decline button found')
             pass
@@ -568,6 +574,27 @@ class FlightsScaper:
                 self.country)
             if journey_option is not None:
                 self.journey_options.append(journey_option)
+        
+
+    def get_all_flight_options(self,
+                               retry_count: int = 3):
+        '''
+        this wraps around the get_flight_options
+        function, and iterates over all urls
+        stored in self.urls, appending the
+        results to self.journey_options.
+        '''
+        WAIT_TIME = 10
+
+        for i, url in enumerate(self.urls):
+            for attempt in range(retry_count):
+                try:
+                    logging.info(f'on url {i+1} of {len(self.urls)}')
+                    self.get_flight_options(url)
+                    break  
+                except StaleElementReferenceException:
+                    logging.warning(f'StaleElementReferenceException caught. Retrying in {WAIT_TIME} seconds...')
+                    sleep(WAIT_TIME) 
         
 
     def sort_journey_options(self,

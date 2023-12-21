@@ -86,7 +86,7 @@ def haversine(lon1: float,
     retrieved 21/12/23. 
     
     original docstring:
-    
+
     Calculate the great circle distanc
     e in kilometers between two points 
     on the earth (specified in decimal degrees)
@@ -103,3 +103,32 @@ def haversine(lon1: float,
     r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
     
     return c * r
+
+
+def calculate_distance(origin: str, 
+                       destination: str) -> float:
+    '''
+    calculates the distance between
+    two airports, given their codes.
+    '''
+    lat1, lon1 = get_airport_metadata(origin)
+    lat2, lon2 = get_airport_metadata(destination)
+
+    return haversine(lon1, lat1, lon2, lat2)
+
+
+def calculate_absolute_leg_distance(leg_id: str) -> float:
+    '''
+    calculates the effective leg
+    distance - that is the ground 
+    covered, including stopovers of
+    a given leg, as recorded in the
+    db.
+    '''
+    legs = get_journey_legs(journey_id)
+
+    total_distance = 0
+    for leg in legs:
+        total_distance += calculate_distance(leg.departure_airport, leg.arrival_airport)
+
+    return total_distance

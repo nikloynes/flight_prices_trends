@@ -276,3 +276,68 @@ def execute_insert_query(table: str,
         # logging.debug(f'closed connection')
 
     return True
+
+
+# compound airports
+# add compound airport
+def insert_compound_airport(new_compound_code: str,
+                            included_airport_code: str):
+    '''
+    inserts a compound airport
+    into the db.
+    '''
+    for code in [new_compound_code, included_airport_code]:
+        if not (len(code) == 3 and code.isalpha()):
+            raise ValueError(f'invalid airport code: {code}')
+
+    q = '''
+        INSERT OR IGNORE INTO compound_airport_codes
+        VALUES (?, ?)
+    '''
+
+    with sqlite3.connect(DB_PATH) as conn:
+        logging.debug(f'connected to db at {DB_PATH}')
+        
+        cursor = conn.cursor()
+        logging.debug(f'created cursor')
+
+        cursor.execute(q, (new_compound_code, included_airport_code))
+        logging.debug(f'executed query')
+        
+        conn.commit()
+        logging.debug(f'committed changes')
+        
+
+# retrieving data
+def match_compound_airport(code: str) -> str:
+    '''
+    checks if the code is
+    a compound airport code.
+    if so, returns the included
+    airport code.
+    '''
+    if not (len(code) == 3 and code.isalpha()):
+            raise ValueError(f'invalid airport code: {code}')
+    
+    q = '''
+        SELECT included_airport_code
+        FROM compound_airport_codes
+        WHERE compound_code = ?
+    '''
+
+    with sqlite3.connect(DB_PATH) as conn:
+        logging.debug(f'connected to db at {DB_PATH}')
+        
+        cursor = conn.cursor()
+        logging.debug(f'created cursor')
+
+        cursor.execute(q, (code,))
+        logging.debug(f'executed query')
+        
+        result = cursor.fetchone()
+        logging.debug(f'fetched result: {result}')
+
+    if result is None:
+        return code
+    else:
+        return result[0]

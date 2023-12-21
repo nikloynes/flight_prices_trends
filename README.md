@@ -16,14 +16,14 @@ At its core, the software incorporates a scraper for the ~~skyscanner~~ kayak fl
 
 ### TO DO
 - test different journey options    
-    - test `multi_city` journeys
+    - ~~test `multi_city` journeys~~
     - test `city_options` journeys
 - add airport parsing
-    - add airport validation
+    - ~~add airport validation~~
     - add distance calculation to journeys table
 - look into what we need to do with the bridge tables 
   in the db
-- find stale element error, and effectively handle it
+- ~~find stale element error, and effectively handle it~~
 - look into socks5 proxies, implement into scraper
 - add typical script for search & adding to DB
 - write a script to add a search to crontab
