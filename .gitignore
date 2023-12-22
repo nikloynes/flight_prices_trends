@@ -165,3 +165,4 @@ geckodriver
 .vscode/
 test_airport_distance.py
 calculating_distances.py
+logs/

@@ -20,7 +20,7 @@ At its core, the software incorporates a scraper for the ~~skyscanner~~ kayak fl
     - test `city_options` journeys
 - add airport parsing
     - ~~add airport validation~~
-    - add distance calculation to journeys table
+    - ~~add distance calculation to journeys table~~
 - look into what we need to do with the bridge tables 
   in the db
 - ~~find stale element error, and effectively handle it~~
