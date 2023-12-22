@@ -7,6 +7,7 @@
 # calculating distances 
 
 # NL, 21/12/23
+# NL, 22/12/23 -- getting distance function right
 
 ############
 # IMPORTS 
