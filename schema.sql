@@ -10,7 +10,7 @@ CREATE TABLE journeys (
 
 CREATE TABLE legs (
     leg_id TEXT PRIMARY KEY,
-    journey_id INTEGER,
+    journey_id TEXT,
     leg_number INTEGER,
     departure_time TEXT,
     arrival_time TEXT,
@@ -19,6 +19,8 @@ CREATE TABLE legs (
     duration INTEGER,
     n_stops INTEGER,
     stopover_airports TEXT,
+    distance_nominal INTEGER,
+    distance_absolute INTEGER,
     FOREIGN KEY(journey_id) REFERENCES journeys(journey_id)
 );
 

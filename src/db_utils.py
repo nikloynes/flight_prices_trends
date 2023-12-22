@@ -23,6 +23,7 @@ from typing import Literal
 
 import sqlite3
 from src.id_factory import Journey, FlightSearch
+from src.airport_utils import calculate_distance, calculate_absolute_leg_distance
 
 ############
 # INIT
@@ -102,6 +103,11 @@ def extract_legs(data: list[dict]) -> list[tuple]:
     '''
     extracts the individual legs 
     from journey_options data.
+
+    in addition, calculates the 
+    nominal distance (origin-destination)
+    and the absolute distance (origin-destination, 
+    incl stops) for each leg in km. 
     '''
     legs = []
 
@@ -125,6 +131,13 @@ def extract_legs(data: list[dict]) -> list[tuple]:
             else:
                 stopover_airports = leg['stopover_airports']
 
+            distance_nominal = int(calculate_distance(
+                departure_airport, 
+                arrival_airport))
+
+            distance_absolute = int(calculate_absolute_leg_distance(
+                leg=leg))
+
             legs.append((
                 leg_id, 
                 journey_id, 
@@ -135,7 +148,9 @@ def extract_legs(data: list[dict]) -> list[tuple]:
                 arrival_airport, 
                 duration,
                 n_stops,
-                stopover_airports))
+                stopover_airports,
+                distance_nominal,
+                distance_absolute))
     
     return legs
 
@@ -247,7 +262,16 @@ def execute_insert_query(table: str,
         raise ValueError(f'table {table} not in INSERT_MAP')
     if columns != INSERT_MAP[table]:
         raise ValueError(f'columns {columns} do not match INSERT_MAP for table {table}')
-    
+    if isinstance(data, list):
+        for sub_tuple in data:
+            if len(sub_tuple) != len(columns):
+                raise ValueError(f'data {sub_tuple} does not match columns {columns}')
+    elif isinstance(data, tuple):
+        if len(data) != len(columns):
+            raise ValueError(f'data {data} does not match columns {columns}')
+    else:
+        raise ValueError(f'data {data} is not a list or tuple')
+
     columns_fmtd = f'({", ".join(columns)})'
     values_fmtd = f'({", ".join(["?" for _ in columns])})'
 

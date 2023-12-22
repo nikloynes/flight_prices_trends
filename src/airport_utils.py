@@ -18,9 +18,9 @@ import airportsdata
 from typing import Literal
 from math import radians, cos, sin, asin, sqrt
 
-from src.db_utils import (
-    match_compound_airport, 
-    get_flight_component_by_id)
+# from src.db_utils import (
+    # match_compound_airport)
+    # get_flight_component_by_id)
 
 ############
 # INIT 
@@ -28,6 +28,19 @@ from src.db_utils import (
 logging.getLogger('airport_utils')
 
 airports = airportsdata.load('IATA') 
+
+############
+# EXCEPTIONS 
+############
+class AirportCodeNotFoundError(Exception):
+    '''
+    raised when an airport code
+    is not found in the airportsdata
+    package, or in our compound codes
+    in db
+    '''
+    pass
+
 
 ############
 # FUNCTIONS 
@@ -43,6 +56,9 @@ def validate_airport_code(code: str,
 
     if code not in airports:
         logging.info('checking compound codes in db')
+        # need to import dynamically to 
+        # avoid circular import error
+        from src.db_utils import match_compound_airport
         code = match_compound_airport(code)
 
     return code in airports
@@ -65,14 +81,18 @@ def get_airport_metadata(code: str,
 
     if code not in airports:
         logging.info('checking compound codes in db')
+        from src.db_utils import match_compound_airport
         code = match_compound_airport(code)
 
-    if return_type == 'dict':
-        # select the fields we want
-        return {field : airports[code][field] for field in fields}
-    elif return_type == 'tuple':
-        return tuple([airports[code][field] for field in fields])
-    
+    try:
+        if return_type == 'dict':
+            # select the fields we want
+            return {field : airports[code][field] for field in fields}
+        elif return_type == 'tuple':
+            return tuple([airports[code][field] for field in fields])
+    except KeyError:
+        raise AirportCodeNotFoundError(f'airport code {code} not found')
+
 
 def haversine(lon1: float, 
               lat1: float, 
@@ -122,7 +142,7 @@ def calculate_distance(origin: str,
 
 
 def calculate_absolute_leg_distance(leg: dict | None = None,
-                                    leg_id: str | None = None,
+                                    # leg_id: str | None = None,
                                     origin: str | None = None,
                                     destination: str | None = None,
                                     stopovers : str | None = None) -> float:
@@ -133,7 +153,8 @@ def calculate_absolute_leg_distance(leg: dict | None = None,
     a given leg, as recorded in the
     db.
     '''
-    if not leg and not leg_id:
+    # if not leg and not leg_id:
+    if not leg:
         leg = {
             'departure_airport' : origin,
             'arrival_airport' : destination,
@@ -141,9 +162,9 @@ def calculate_absolute_leg_distance(leg: dict | None = None,
             'stopover_airports' : stopovers
         }
 
-    elif not leg and leg_id:
-        logging.info(f'no leg supplied, trying to retrieve via leg-id')
-        leg = get_flight_component_by_id('leg', leg_id)
+    # elif not leg and leg_id:
+    #     logging.info(f'no leg supplied, trying to retrieve via leg-id')
+    #     leg = get_flight_component_by_id('leg', leg_id)
 
     if leg['n_stops']==0:
         logging.info(f'no stopovers, returning direct distance')
