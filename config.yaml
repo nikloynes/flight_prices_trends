@@ -74,6 +74,8 @@ insert_map:
     - duration
     - n_stops
     - stopover_airports
+    - distance_nominal
+    - distance_absolute
   prices:
     - journey_id
     - price

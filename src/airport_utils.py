@@ -174,8 +174,13 @@ def calculate_absolute_leg_distance(leg: dict | None = None,
     
     logging.info(f'calculating distance with stopovers')
     
-    # split the string
-    stops = leg['stopover_airports'].split(', ')
+    # if we're dealing with a db record - split the string
+    if isinstance(leg['stopover_airports'], str):
+        stops = leg['stopover_airports'].split(', ')
+    # if we're dealing with a list fresh from scraper - 
+    # leave it as is
+    elif isinstance(leg['stopover_airports'], list):
+        stops = leg['stopover_airports']
 
     total_distance = 0
     next_origin = None
