@@ -162,3 +162,5 @@ chromedriver
 geckodriver
 *.db
 *.sqlite
+.vscode/
+test_airport_distance.py

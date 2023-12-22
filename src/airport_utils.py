@@ -112,6 +112,7 @@ def calculate_distance(origin: str,
     '''
     calculates the distance between
     two airports, given their codes.
+    distance is returned in km.
     '''
     lat1, lon1 = get_airport_metadata(origin)
     lat2, lon2 = get_airport_metadata(destination)
@@ -119,8 +120,11 @@ def calculate_distance(origin: str,
     return haversine(lon1, lat1, lon2, lat2)
 
 
-def calculate_absolute_leg_distance(leg: dict,
-                                    leg_id: str | None) -> float:
+def calculate_absolute_leg_distance(leg: dict | None = None,
+                                    leg_id: str | None = None,
+                                    origin: str | None = None,
+                                    destination: str | None = None,
+                                    stopovers : str | None = None) -> float:
     '''
     calculates the effective leg
     distance - that is the ground 
@@ -128,7 +132,15 @@ def calculate_absolute_leg_distance(leg: dict,
     a given leg, as recorded in the
     db.
     '''
-    if not leg and leg_id:
+    if not leg and not leg_id:
+        leg = {
+            'departure_airport' : origin,
+            'arrival_airport' : destination,
+            'n_stops' : len(stopovers.split(', ')),
+            'stopover_airports' : stopovers
+        }
+
+    elif not leg and leg_id:
         logging.info(f'no leg supplied, trying to retrieve via leg-id')
         leg = get_flight_component_by_id('leg', leg_id)
 
@@ -139,23 +151,32 @@ def calculate_absolute_leg_distance(leg: dict,
             leg['arrival_airport'])
     
     logging.info(f'calculating distance with stopovers')
+    
     # split the string
-    stopovers = leg['stopover_airports'].split(', ')
+    stops = leg['stopover_airports'].split(', ')
 
     total_distance = 0
-    from_idx = 0
-    to_idx = 1
+    next_origin = None
 
-    all_airports = [leg['departure_airport']] + stopovers + [leg['arrival_airport']]
+    for i, stop in enumerate(stops):
+        if not next_origin:
+            tmp_origin = leg['departure_airport']
+            tmp_destination = stop
+        else:
+            tmp_origin = next_origin
+            tmp_destination = stop
+
+        if len(stop.split('-'))>1:
+            logging.info(f'{stop} is a self-transfer')
+            tmp_destination = stop.split('-')[0]
+            next_origin = stop.split('-')[1]
+
+        else:
+            next_origin = stop
+
+        total_distance += calculate_distance(tmp_origin, tmp_destination)
+
+        if i == len(stops)-1:
+            total_distance += calculate_distance(next_origin, leg['arrival_airport'])
     
-    used_all_airports = False
-    
-    while not used_all_airports:
-        if len(all_airports[to_idx].split('-'))>1:
-            logging.info(f'{all_airports[to_idx]} is a self-transfer')  
-
-    pass
-
-'''
-would be nice to finish off this function.
-'''
+    return total_distance
