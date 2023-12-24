@@ -25,7 +25,7 @@ At its core, the software incorporates a scraper for the ~~skyscanner~~ kayak fl
   in the db
 - ~~find stale element error, and effectively handle it~~
 - look into socks5 proxies, implement into scraper
-- add typical script for search & adding to DB
+- ~~add typical script for search & adding to DB~~
 - ~~write a script to add a search to crontab~~
 - look at what happens if we run headless
 - try working out a way to run headless with x11 server

@@ -87,6 +87,7 @@ def extract_journeys(data: list[dict],
         cabin_baggage = record['meta']['cabin_baggage']
         checked_baggage = record['meta']['checked_baggage']
         class_ = record['meta']['class'][0]
+        airline = ', '.join(record['meta']['airline'])
 
         journeys.append(
             (journey_id, 
@@ -94,7 +95,8 @@ def extract_journeys(data: list[dict],
              n_legs, 
              cabin_baggage, 
              checked_baggage, 
-             class_))
+             class_,
+             airline))
     
     return journeys
 
@@ -371,6 +373,28 @@ def get_flight_component_by_id(
 
     return {k : v for k, v in zip(columns, result)}
 
+
+def get_prices_for_journey(journey_id: str) -> list[dict]:
+    '''
+    '''
+    pass
+
+
+def get_prices_for_search(search_id: str,
+                          search_date_from: str | None = None,
+                          search_date_to: str | None = None) -> list[dict]:
+    '''
+    '''
+    pass
+
+def search_to_search_id(origin: str | list[str],
+                        departure: str | list[str],
+                        leave_date: str | list[str],
+                        return_date: str | None = None,
+                        flex: int | None = None) -> str:
+    '''
+    '''
+    pass
 
 def match_compound_airport(code: str) -> str:
     '''
