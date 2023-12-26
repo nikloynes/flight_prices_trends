@@ -374,7 +374,9 @@ def get_flight_component_by_id(
     return {k : v for k, v in zip(columns, result)}
 
 
-def get_prices_for_journey(journey_id: str) -> list[dict]:
+def get_prices_for_journey(journey_id: str,
+                           search_date_from: str,
+                           search_date_to: str) -> list[dict]:
     '''
     '''
     pass
@@ -387,6 +389,7 @@ def get_prices_for_search(search_id: str,
     '''
     pass
 
+
 def search_to_search_id(origin: str | list[str],
                         departure: str | list[str],
                         leave_date: str | list[str],
@@ -395,6 +398,24 @@ def search_to_search_id(origin: str | list[str],
     '''
     '''
     pass
+
+
+def find_journeys(search_id: str | None = None,
+                  origin: str | list[str] | None = None,
+                  departure: str | list[str] | None = None,
+                  leave_date: str | list[str] | None = None,
+                  return_date: str | None = None,
+                  flex: int | None = None) -> list[str]:
+    '''
+    '''
+    pass
+
+
+def get_journey(journey_id: str) -> dict:
+    '''
+    '''
+    pass
+
 
 def match_compound_airport(code: str) -> str:
     '''
