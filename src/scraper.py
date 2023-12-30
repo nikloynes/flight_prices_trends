@@ -293,7 +293,8 @@ def find_full_results(tmp_results: list,
 def parse_prices_meta(raw_chunks: list[str],
                       currency_symbol: str,
                       created_at: dt.datetime,
-                      journey_type: str) -> dict:
+                      journey_type: str,
+                      CONFIG: dict = CONFIG) -> dict:
     '''
     takes a list of strings containing
     the price and meta info for a given
@@ -304,12 +305,22 @@ def parse_prices_meta(raw_chunks: list[str],
     # we have a list of length 5
     chunks = [x for x in raw_chunks if x != 'Select']
 
-    if 'multi_city' not in journey_type:
-        if len(chunks) != 5:
+    # check if airline is in the list of airlines without hand luggage
+    airline = chunks[0].split(', ')
+    airline_without_hand_luggage = any(airline_name in airline for airline_name in CONFIG['airlines_without_hand_luggage'])
+
+    if 'multi_city' not in journey_type and not airline_without_hand_luggage:
+        if len(chunks) != 5 and not airline_without_hand_luggage:
             raise ValueError(f'chunks is not length 5: {chunks}')
         raw_price_idx = 3
-        cabin_baggage = int(chunks[1])
+        cabin_baggage = int(chunks[1]) if not airline_without_hand_luggage else None
         checked_baggage = int(chunks[2])
+    elif 'mulit_city' not in journey_type and airline_without_hand_luggage:
+        if len(chunks) != 4:
+            raise ValueError(f'chunks is not length 4: {chunks}')
+        raw_price_idx = 2
+        cabin_baggage = None
+        checked_baggage = int(chunks[1])
     else:
         # for multi-city, we don't seem to have bag 
         # info, so we have to drop that chunk
@@ -325,7 +336,7 @@ def parse_prices_meta(raw_chunks: list[str],
     price = int(raw_price)
     
     return {
-        'airline' : chunks[0].split(', '),
+        'airline' : airline,
         'cabin_baggage' : cabin_baggage,
         'checked_baggage' : checked_baggage,
         'class' : chunks[len(chunks)-1].split(', '),
@@ -515,9 +526,20 @@ class FlightsScaper:
         logging.info(f'waiting for progress bar to complete...')
         try:
             WebDriverWait(self.driver, 20).until(
-                EC.invisibility_of_element_located(
+                EC.presence_of_element_located(
                     (By.CSS_SELECTOR,
                     CONFIG['country'][self.country]['css_selectors']['progress_bar'])))
+            
+            progress_bar = self.driver.find_element(
+                By.CSS_SELECTOR,
+                CONFIG['country'][lf.country]['css_selectors']['progress_bar'])
+    
+            done = 0
+            while done < 20:
+                done += 0.5
+                sleep(0.5)
+                logging.info(progress_bar.get_attribute('style'))
+        
         except TimeoutException:
             logging.info(f'progress bar wasnt cought...')
             pass

@@ -27,6 +27,9 @@ permitted_sort_by:
   - 'duration_total'
   - 'n_stops_leg_*'
   - 'n_stops_total'
+airlines_without_hand_luggage: # extend this if you encounter more airlines
+# who don't allow hand luggage.
+  - 'JetBlue'
 max_city_options: 6
 country:
   de:
