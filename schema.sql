@@ -5,6 +5,7 @@ CREATE TABLE journeys (
     cabin_baggage INTEGER,
     checked_baggage INTEGER,
     class TEXT,
+    airline TEXT,
     FOREIGN KEY(search_id) REFERENCES flight_searches(search_id)
 );
 
