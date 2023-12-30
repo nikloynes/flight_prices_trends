@@ -532,7 +532,7 @@ class FlightsScaper:
             
             progress_bar = self.driver.find_element(
                 By.CSS_SELECTOR,
-                CONFIG['country'][lf.country]['css_selectors']['progress_bar'])
+                CONFIG['country'][self.country]['css_selectors']['progress_bar'])
     
             done = 0
             while done < 20:
