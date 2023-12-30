@@ -104,7 +104,7 @@ args = parser.parse_args()
 ############
 # INIT
 ############
-todays_logfile = f'{datetime.now().strftime("%Y-%m-%d")}.log'
+todays_logfile = f'{datetime.now().strftime("%Y-%m-%d_%H-%M")}.log'
 file_handler = logging.FileHandler(filename=os.getenv('LOG_FILE_PATH')+todays_logfile)
 stdout_handler = logging.StreamHandler(sys.stdout)
 
