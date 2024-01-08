@@ -71,7 +71,7 @@ options:
     db.execute_insert_query(table='legs', columns=db.INSERT_MAP['legs'], data=legs)
     db.execute_insert_query(table='prices', columns=db.INSERT_MAP['prices'], data=prices)
     ```
-- the database is structure into 3 core tables, in (almost) ascending order of specificity:
+- the database is structure into 4 core tables, in (almost) ascending order of specificity:
     - `flight_searches`
     - `journeys`
     - `legs`
